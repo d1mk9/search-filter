@@ -1,0 +1,4 @@
+timezone: "Europe/Moscow"
+postgres_host: "localhost"
+postgres_port: "5432"
+postgres_db: "searchfilt"

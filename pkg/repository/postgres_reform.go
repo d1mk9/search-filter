@@ -1,0 +1,92 @@
+package repository
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+
+	"search-filter/pkg/models"
+
+	reform "gopkg.in/reform.v1"
+)
+
+type PostgresRepository struct {
+	db *reform.DB
+}
+
+func NewPostgresRepository(db *reform.DB) *PostgresRepository {
+	return &PostgresRepository{db: db}
+}
+
+func (r *PostgresRepository) Create(ctx context.Context, name string, query json.RawMessage) (*models.Filter, error) {
+	f := &models.Filter{
+		Name:  name,
+		Query: query,
+	}
+	if err := r.db.WithContext(ctx).Insert(f); err != nil {
+		return nil, err
+	}
+
+	var out models.Filter
+	if err := r.db.WithContext(ctx).FindByPrimaryKeyTo(&out, f.ID); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+func (r *PostgresRepository) List(ctx context.Context) ([]models.FilterListItem, error) {
+	rows, err := r.db.WithContext(ctx).SelectAllFrom(models.FilterTable, "")
+	if err != nil {
+		return nil, err
+	}
+	res := make([]models.FilterListItem, 0, len(rows))
+	for _, s := range rows {
+		f := s.(*models.Filter)
+		res = append(res, f.ToListItem())
+	}
+	return res, nil
+}
+
+func (r *PostgresRepository) Get(ctx context.Context, id int64) (*models.Filter, error) {
+	var f models.Filter
+	if err := r.db.WithContext(ctx).FindByPrimaryKeyTo(&f, id); err != nil {
+		if errors.Is(err, reform.ErrNoRows) {
+			return nil, ErrNotFound
+		}
+		return nil, err
+	}
+	return &f, nil
+}
+
+func (r *PostgresRepository) Update(ctx context.Context, id int64, query json.RawMessage) (*models.Filter, error) {
+	var f models.Filter
+	if err := r.db.WithContext(ctx).FindByPrimaryKeyTo(&f, id); err != nil {
+		if errors.Is(err, reform.ErrNoRows) {
+			return nil, ErrNotFound
+		}
+		return nil, err
+	}
+
+	f.Query = query
+
+	if err := r.db.WithContext(ctx).Update(&f); err != nil {
+		return nil, err
+	}
+
+	var out models.Filter
+	if err := r.db.WithContext(ctx).FindByPrimaryKeyTo(&out, id); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+func (r *PostgresRepository) Delete(ctx context.Context, id int64) error {
+	n, err := r.db.WithContext(ctx).DeleteFrom(models.FilterTable, "WHERE id = $1", id)
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
