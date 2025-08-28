@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"time"
 
 	"search-filter/pkg/models"
 
@@ -19,23 +20,22 @@ func NewPostgresRepository(db *reform.DB) *PostgresRepository {
 }
 
 func (r *PostgresRepository) Create(ctx context.Context, name string, query json.RawMessage) (*models.Filter, error) {
+	now := time.Now().UTC()
 	f := &models.Filter{
-		Name:  name,
-		Query: query,
+		Name:      name,
+		Query:     query,
+		CreatedAt: now,
+		UpdatedAt: now,
 	}
 	if err := r.db.WithContext(ctx).Insert(f); err != nil {
 		return nil, err
 	}
 
-	var out models.Filter
-	if err := r.db.WithContext(ctx).FindByPrimaryKeyTo(&out, f.ID); err != nil {
-		return nil, err
-	}
-	return &out, nil
+	return f, nil
 }
 
 func (r *PostgresRepository) List(ctx context.Context) ([]models.FilterListItem, error) {
-	rows, err := r.db.WithContext(ctx).SelectAllFrom(models.FilterTable, "")
+	rows, err := r.db.WithContext(ctx).SelectAllFrom(models.FilterTable, "ORDER BY id ASC")
 	if err != nil {
 		return nil, err
 	}
@@ -68,16 +68,13 @@ func (r *PostgresRepository) Update(ctx context.Context, id int64, query json.Ra
 	}
 
 	f.Query = query
+	f.UpdatedAt = time.Now().UTC()
 
 	if err := r.db.WithContext(ctx).Update(&f); err != nil {
 		return nil, err
 	}
 
-	var out models.Filter
-	if err := r.db.WithContext(ctx).FindByPrimaryKeyTo(&out, id); err != nil {
-		return nil, err
-	}
-	return &out, nil
+	return &f, nil
 }
 
 func (r *PostgresRepository) Delete(ctx context.Context, id int64) error {
