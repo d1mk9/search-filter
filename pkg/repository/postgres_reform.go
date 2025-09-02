@@ -2,24 +2,21 @@ package repository
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"time"
 
-	"search-filter/pkg/models"
-
+	"github.com/google/uuid"
 	reform "gopkg.in/reform.v1"
+
+	"search-filter/pkg/models"
+	"search-filter/pkg/types"
 )
 
-type PostgresRepository struct {
-	db *reform.DB
-}
+type PostgresRepository struct{ db *reform.DB }
 
-func NewPostgresRepository(db *reform.DB) *PostgresRepository {
-	return &PostgresRepository{db: db}
-}
+func NewPostgresRepository(db *reform.DB) *PostgresRepository { return &PostgresRepository{db: db} }
 
-func (r *PostgresRepository) Create(ctx context.Context, name string, query json.RawMessage) (*models.Filter, error) {
+func (r *PostgresRepository) Create(ctx context.Context, name string, query types.Query) (*models.Filter, error) {
 	now := time.Now().UTC()
 	f := &models.Filter{
 		Name:      name,
@@ -30,12 +27,11 @@ func (r *PostgresRepository) Create(ctx context.Context, name string, query json
 	if err := r.db.WithContext(ctx).Insert(f); err != nil {
 		return nil, err
 	}
-
 	return f, nil
 }
 
 func (r *PostgresRepository) List(ctx context.Context) ([]models.FilterListItem, error) {
-	rows, err := r.db.WithContext(ctx).SelectAllFrom(models.FilterTable, "ORDER BY id ASC")
+	rows, err := r.db.WithContext(ctx).FindAllFrom(models.FilterTable, "ORDER BY id ASC")
 	if err != nil {
 		return nil, err
 	}
@@ -47,7 +43,7 @@ func (r *PostgresRepository) List(ctx context.Context) ([]models.FilterListItem,
 	return res, nil
 }
 
-func (r *PostgresRepository) Get(ctx context.Context, id int64) (*models.Filter, error) {
+func (r *PostgresRepository) Get(ctx context.Context, id uuid.UUID) (*models.Filter, error) {
 	var f models.Filter
 	if err := r.db.WithContext(ctx).FindByPrimaryKeyTo(&f, id); err != nil {
 		if errors.Is(err, reform.ErrNoRows) {
@@ -58,7 +54,7 @@ func (r *PostgresRepository) Get(ctx context.Context, id int64) (*models.Filter,
 	return &f, nil
 }
 
-func (r *PostgresRepository) Update(ctx context.Context, id int64, query json.RawMessage) (*models.Filter, error) {
+func (r *PostgresRepository) Update(ctx context.Context, id uuid.UUID, query types.Query) (*models.Filter, error) {
 	var f models.Filter
 	if err := r.db.WithContext(ctx).FindByPrimaryKeyTo(&f, id); err != nil {
 		if errors.Is(err, reform.ErrNoRows) {
@@ -67,17 +63,16 @@ func (r *PostgresRepository) Update(ctx context.Context, id int64, query json.Ra
 		return nil, err
 	}
 
-	f.Query = query
+	f.Query = query // ← снова напрямую; Scanner/Valuer сделают работу
 	f.UpdatedAt = time.Now().UTC()
 
 	if err := r.db.WithContext(ctx).Update(&f); err != nil {
 		return nil, err
 	}
-
 	return &f, nil
 }
 
-func (r *PostgresRepository) Delete(ctx context.Context, id int64) error {
+func (r *PostgresRepository) Delete(ctx context.Context, id uuid.UUID) error {
 	n, err := r.db.WithContext(ctx).DeleteFrom(models.FilterTable, "WHERE id = $1", id)
 	if err != nil {
 		return err

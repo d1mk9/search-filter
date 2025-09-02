@@ -57,9 +57,9 @@ var FilterTable = &filterTableType{
 		Type:    "Filter",
 		SQLName: "filters",
 		Fields: []parse.FieldInfo{
-			{Name: "ID", Type: "int64", Column: "id"},
+			{Name: "ID", Type: "uuid.UUID", Column: "id"},
 			{Name: "Name", Type: "string", Column: "name"},
-			{Name: "Query", Type: "json.RawMessage", Column: "query"},
+			{Name: "Query", Type: "types.Query", Column: "query"},
 			{Name: "CreatedAt", Type: "time.Time", Column: "created_at"},
 			{Name: "UpdatedAt", Type: "time.Time", Column: "updated_at"},
 		},

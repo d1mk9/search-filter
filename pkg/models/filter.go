@@ -1,24 +1,27 @@
 package models
 
 import (
-	"encoding/json"
+	"search-filter/pkg/types"
+
 	"time"
+
+	"github.com/google/uuid"
 )
 
 //go:generate reform
 //reform:filters
 type Filter struct {
-	ID        int64           `reform:"id,pk"      json:"id"`
-	Name      string          `reform:"name"       json:"name"`
-	Query     json.RawMessage `reform:"query"      json:"query"`
-	CreatedAt time.Time       `reform:"created_at" json:"created_at"`
-	UpdatedAt time.Time       `reform:"updated_at" json:"updated_at"`
+	ID        uuid.UUID   `reform:"id,pk"      json:"id"`
+	Name      string      `reform:"name"       json:"name"`
+	Query     types.Query `reform:"query"      json:"query"`
+	CreatedAt time.Time   `reform:"created_at" json:"created_at"`
+	UpdatedAt time.Time   `reform:"updated_at" json:"updated_at"`
 }
 
 type FilterListItem struct {
-	ID    int64           `json:"id"`
-	Name  string          `json:"name"`
-	Query json.RawMessage `json:"query"`
+	ID    uuid.UUID   `json:"id"`
+	Name  string      `json:"name"`
+	Query types.Query `json:"query"`
 }
 
 func (f *Filter) ToListItem() FilterListItem {

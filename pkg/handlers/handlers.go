@@ -1,15 +1,17 @@
+// pkg/handlers/handlers.go
 package handlers
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"time"
 
 	"search-filter/pkg/models"
 	"search-filter/pkg/service"
+	"search-filter/pkg/types"
 
 	"github.com/danielgtaylor/huma/v2"
+	"github.com/google/uuid"
 )
 
 type FiltersHandler struct {
@@ -21,16 +23,16 @@ func NewFiltersHandler(svc service.Filters) *FiltersHandler {
 }
 
 type FilterDTO struct {
-	ID        int64           `json:"id"`
-	Name      string          `json:"name"`
-	Query     json.RawMessage `json:"query"`
-	CreatedAt string          `json:"created_at"`
+	ID        uuid.UUID   `json:"id"`
+	Name      string      `json:"name"`
+	Query     types.Query `json:"query"`
+	CreatedAt time.Time   `json:"created_at"`
 }
 
 type FilterListItemDTO struct {
-	ID    int64           `json:"id"`
-	Name  string          `json:"name"`
-	Query json.RawMessage `json:"query"`
+	ID    uuid.UUID   `json:"id"`
+	Name  string      `json:"name"`
+	Query types.Query `json:"query"`
 }
 
 func toFilterDTO(m models.Filter) FilterDTO {
@@ -38,13 +40,13 @@ func toFilterDTO(m models.Filter) FilterDTO {
 		ID:        m.ID,
 		Name:      m.Name,
 		Query:     m.Query,
-		CreatedAt: m.CreatedAt.UTC().Format(time.RFC3339),
+		CreatedAt: m.CreatedAt,
 	}
 }
 
 type createFilterBody struct {
-	Name  string          `json:"name"`
-	Query json.RawMessage `json:"query"`
+	Name  string      `json:"name" minLength:"1"`
+	Query types.Query `json:"query" jsonschema:"minProperties=1"`
 }
 type createFilterInput struct {
 	Body createFilterBody `json:"body"`
@@ -54,22 +56,11 @@ type createFilterOutput struct {
 }
 
 func (h *FiltersHandler) Create(ctx context.Context, in *createFilterInput) (*createFilterOutput, error) {
-	if in == nil || in.Body.Name == "" || len(in.Body.Query) == 0 {
-		return nil, huma.Error400BadRequest("name and query are required")
-	}
-
-	var q service.Query
-	if err := json.Unmarshal(in.Body.Query, &q); err != nil {
-		return nil, huma.Error400BadRequest("query must be a valid JSON object")
-	}
-
-	f, err := h.svc.Create(ctx, in.Body.Name, q)
+	f, err := h.svc.Create(ctx, in.Body.Name, in.Body.Query)
 	if err != nil {
 		switch {
 		case errors.Is(err, service.ErrValidation):
-			return nil, huma.Error400BadRequest(err.Error())
-		case errors.Is(err, service.ErrConflict):
-			return nil, huma.Error409Conflict("conflict")
+			return nil, huma.Error422UnprocessableEntity(err.Error())
 		default:
 			return nil, huma.Error500InternalServerError("internal error")
 		}
@@ -98,7 +89,7 @@ func (h *FiltersHandler) List(ctx context.Context, _ *struct{}) (*listFiltersOut
 }
 
 type IdPath struct {
-	ID int64 `path:"id"`
+	ID uuid.UUID `path:"id" format:"uuid"`
 }
 type getFilterInput struct {
 	IdPath
@@ -114,7 +105,7 @@ func (h *FiltersHandler) Get(ctx context.Context, in *getFilterInput) (*getFilte
 		case errors.Is(err, service.ErrNotFound):
 			return nil, huma.Error404NotFound("not found")
 		case errors.Is(err, service.ErrValidation):
-			return nil, huma.Error400BadRequest(err.Error())
+			return nil, huma.Error422UnprocessableEntity(err.Error())
 		default:
 			return nil, huma.Error500InternalServerError("internal error")
 		}
@@ -123,7 +114,7 @@ func (h *FiltersHandler) Get(ctx context.Context, in *getFilterInput) (*getFilte
 }
 
 type updateFilterBody struct {
-	Query json.RawMessage `json:"query"`
+	Query types.Query `json:"query" jsonschema:"minProperties=1"`
 }
 type updateFilterInput struct {
 	IdPath
@@ -134,24 +125,13 @@ type updateFilterOutput struct {
 }
 
 func (h *FiltersHandler) Update(ctx context.Context, in *updateFilterInput) (*updateFilterOutput, error) {
-	if len(in.Body.Query) == 0 {
-		return nil, huma.Error400BadRequest("query is required")
-	}
-
-	var q service.Query
-	if err := json.Unmarshal(in.Body.Query, &q); err != nil {
-		return nil, huma.Error400BadRequest("query must be a valid JSON object")
-	}
-
-	f, err := h.svc.Update(ctx, in.ID, q)
+	f, err := h.svc.Update(ctx, in.ID, in.Body.Query)
 	if err != nil {
 		switch {
 		case errors.Is(err, service.ErrNotFound):
 			return nil, huma.Error404NotFound("not found")
 		case errors.Is(err, service.ErrValidation):
-			return nil, huma.Error400BadRequest(err.Error())
-		case errors.Is(err, service.ErrConflict):
-			return nil, huma.Error409Conflict("conflict")
+			return nil, huma.Error422UnprocessableEntity(err.Error())
 		default:
 			return nil, huma.Error500InternalServerError("internal error")
 		}
@@ -169,7 +149,7 @@ func (h *FiltersHandler) Delete(ctx context.Context, in *deleteFilterInput) (*st
 		case errors.Is(err, service.ErrNotFound):
 			return nil, huma.Error404NotFound("not found")
 		case errors.Is(err, service.ErrValidation):
-			return nil, huma.Error400BadRequest(err.Error())
+			return nil, huma.Error422UnprocessableEntity(err.Error())
 		default:
 			return nil, huma.Error500InternalServerError("internal error")
 		}
@@ -181,7 +161,7 @@ type applyFilterInput struct {
 	IdPath
 }
 type applyFilterOutput struct {
-	Body json.RawMessage `json:"body"`
+	Body types.Query `json:"body"`
 }
 
 func (h *FiltersHandler) Apply(ctx context.Context, in *applyFilterInput) (*applyFilterOutput, error) {
@@ -191,15 +171,10 @@ func (h *FiltersHandler) Apply(ctx context.Context, in *applyFilterInput) (*appl
 		case errors.Is(err, service.ErrNotFound):
 			return nil, huma.Error404NotFound("not found")
 		case errors.Is(err, service.ErrValidation):
-			return nil, huma.Error400BadRequest(err.Error())
+			return nil, huma.Error422UnprocessableEntity(err.Error())
 		default:
 			return nil, huma.Error500InternalServerError("internal error")
 		}
 	}
-
-	raw, err := json.Marshal(q)
-	if err != nil {
-		return nil, huma.Error500InternalServerError("failed to encode response")
-	}
-	return &applyFilterOutput{Body: raw}, nil
+	return &applyFilterOutput{Body: q}, nil
 }
