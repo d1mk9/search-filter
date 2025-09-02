@@ -31,7 +31,7 @@ func (r *PostgresRepository) Create(ctx context.Context, name string, query type
 }
 
 func (r *PostgresRepository) List(ctx context.Context) ([]models.FilterListItem, error) {
-	rows, err := r.db.WithContext(ctx).FindAllFrom(models.FilterTable, "ORDER BY id ASC")
+	rows, err := r.db.WithContext(ctx).SelectAllFrom(models.FilterTable, "ORDER BY id ASC")
 	if err != nil {
 		return nil, err
 	}
@@ -63,8 +63,7 @@ func (r *PostgresRepository) Update(ctx context.Context, id uuid.UUID, query typ
 		return nil, err
 	}
 
-	f.Query = query // ← снова напрямую; Scanner/Valuer сделают работу
-	f.UpdatedAt = time.Now().UTC()
+	f.Query = query
 
 	if err := r.db.WithContext(ctx).Update(&f); err != nil {
 		return nil, err
