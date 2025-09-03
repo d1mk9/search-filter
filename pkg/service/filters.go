@@ -107,11 +107,9 @@ func (s *service) Apply(ctx context.Context, id uuid.UUID) (types.Query, error) 
 
 	q, err := placeholder.RenderQuery(
 		f.Query,
-		placeholder.TemplateCtx{
-			Now:         time.Now().In(s.loc),
-			Loc:         s.loc,
-			CurrentUser: s.currentUserID,
-		},
+		time.Now().In(s.loc),
+		s.loc,
+		s.currentUserID,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("%w: render template: %s", ErrValidation, err)
